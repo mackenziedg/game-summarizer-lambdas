@@ -1,0 +1,28 @@
+services:
+  pull-boxscores:
+    build:
+      context: ./pull-boxscores
+      dockerfile: Dockerfile
+    volumes:
+      - type: bind
+        source: ${PWD}/prod.db
+        target: /prod.db
+  generate-summaries:
+    build:
+      context: ./generate-summaries
+      dockerfile: Dockerfile
+    secrets:
+      - ANTHROPIC_API_KEY
+    volumes:
+      - type: bind
+        source: ${PWD}/prod.db
+        target: /prod.db
+      - type: bind
+        source: ${PWD}/prompts
+        target: /prompts
+    depends_on:
+      pull-boxscores:
+        condition: service_completed_successfully
+secrets:
+  ANTHROPIC_API_KEY:
+    file: .ANTHROPIC_API_KEY

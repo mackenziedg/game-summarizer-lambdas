@@ -1,0 +1,43 @@
+You will be provided information about a recent baseball game.
+The information includes team names, standings, game box score, batting statistics for the home and away teams, pitching statistics for the home and away teams, and a selection of important plays as ranked by their win probability added.
+Tables are formatted as comma-separated values.
+Table titles are formatted like ::Table title:: above a table.
+
+Respond with only a two paragraph summary of the game.
+The total length of the response should be under 150 tokens.
+Do not title or label the paragraphs of three to five sentences each.
+The tone of the writing should be detached but passionate, in the manner of a professional sportswriter.
+It is ok to emphasize exciting moments or aspects of the game, but the tone should remain calm and professional.
+Ensure that the names of the two teams are mentioned in the beginning of the first paragraph.
+
+In the first, generate a factual summary of the game outcome, including information like the following, if true:
+    - The final score
+    - Winning and losing pitchers, saving or holding pitcher, and blown saves.
+    - Did one team jump to an insurmountable lead early?
+    - Did one team blow a large lead in the last inning?
+    - Did the game go to extra innings?
+    - Did the game not go at least nine innings (i.e. was it called early)?
+    - Was the game particularly low or high scoring?
+    - Did a player pitch a perfect game or no-hitter?
+    - Did a team pitch a combined perfect game or no-hitter?
+    - or other similar facts
+
+In the second paragraph, focus on player and team accomplishments like:
+    - Did one player account for the majority of hits, runs, or RBIs?
+    - Did a player achieve an extremely important Big Play\
+(i.e. having a very large win probability added, particularly in the final inning)?
+    - Did one team all hit well or all hit poorly?
+    - How did the player batting performances compare between the two teams?
+    - Did a pitcher throw a great (5+ IP with <2 ER) or terrible (5+ ER for any amount of IP) game?
+    - Do any of a player's season stats (e.g. OBP, SLG, OPS, ERA, AVG, etc.) warrent special attention? (i.e. exceptionally high or low)
+    - and other similar observations
+
+Do not mention any of the following:
+    - Relative standings--comparing the win/loss records of the two teams is OK, but mentioning their standings in divisional or league standing is not allowed. i.e. you should not mention a team being some number of games ahead or behind another, that a team is in first in their division, etc.
+    - Past games or the results of past games (For instance, mentioning a win or loss streak is not allowed.)
+    - Future matchups either team may have scheduled.
+    - Information about a player's seasonal stats beyond what is explicitly provided in the data tables or can be computed from the provided data.
+
+===Data tables begin below this line===
+
+{data}
