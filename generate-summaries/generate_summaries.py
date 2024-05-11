@@ -80,15 +80,15 @@ def save_summary(data_dict: dict[str, str]):
         json.dump(data_dict, f)
 
 
-def get_prompt() -> str:
-    prompt_path = sorted(listdir("/llm_data/prompts/"))[-1]  # Get most recent prompt
-    with open(f"/llm_data/prompts/{prompt_path}") as f:
+def get_prompt(prompt_type: str) -> str:
+    prompt_path = sorted(listdir(f"/llm_data/prompts/{prompt_type}/"))[-1]  # Get most recent prompt
+    with open(f"/llm_data/prompts/{prompt_type}/{prompt_path}") as f:
         return f.read()
 
 
-def build_chain():
+def build_chain(prompt_type: str):
     model = ChatAnthropic(model="claude-3-haiku-20240307")
-    prompt = ChatPromptTemplate.from_template(get_prompt())
+    prompt = ChatPromptTemplate.from_template(get_prompt(prompt_type))
     output_parser = StrOutputParser()
     return prompt | model | output_parser
 
@@ -97,14 +97,18 @@ def main(test: int | None = None) -> str:
     fn_start = monotonic()
 
     data_dicts = get_inputs()[:test]
-    chain = build_chain()
+    summary_chain = build_chain("summarize")
+    translate_chain = build_chain("translate")
 
     for ix, d in enumerate(data_dicts):
         print(f"{ix+1}/{len(data_dicts)}")
         formatted = format_datatables(d)
-        d["summary"] = chain.invoke({"data": formatted})
+        d["summary"] = summary_chain.invoke({"data": formatted})
+        d["summary_en"] = d["summary"]
+        sleep(1)  # Just being safe with rate limits
+        d["summary_es"] = translate_chain.invoke({"article": d["summary_en"]})
+        sleep(1)  # Just being safe with rate limits
         save_summary(d)
-        sleep(12)
 
     print(f"Finished generate-summaries in {monotonic() - fn_start:.1f} s.")
 
