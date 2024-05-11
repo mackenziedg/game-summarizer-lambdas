@@ -3,23 +3,24 @@ services:
     build:
       context: ./pull-boxscores
       dockerfile: Dockerfile
+    environment:
+      - GS_TEST=${GS_TEST}
     volumes:
       - type: bind
-        source: ${PWD}/prod.db
-        target: /prod.db
+        source: ${PWD}/data
+        target: /llm_data
   generate-summaries:
     build:
       context: ./generate-summaries
       dockerfile: Dockerfile
+    environment:
+      - GS_TEST=${GS_TEST}
     secrets:
       - ANTHROPIC_API_KEY
     volumes:
       - type: bind
-        source: ${PWD}/prod.db
-        target: /prod.db
-      - type: bind
-        source: ${PWD}/prompts
-        target: /prompts
+        source: ${PWD}/data
+        target: /llm_data
     depends_on:
       pull-boxscores:
         condition: service_completed_successfully

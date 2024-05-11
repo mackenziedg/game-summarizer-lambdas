@@ -2,30 +2,35 @@ from configparser import ConfigParser
 from datetime import date, timedelta
 import json
 from os import environ, listdir
-import sqlite3
 from time import monotonic, sleep
 
-import boto3
 from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 
-def get_inputs() -> list[dict[str, str]]:
-    def dict_factory(cursor, row):
-        fields = [column[0] for column in cursor.description]
-        return {key: value for key, value in zip(fields, row)}
+# Volume defined in compose.yaml
+LLM_INPUT_DIRECTORY: str = "/llm_data/llm_inputs"
+LLM_OUTPUT_DIRECTORY: str = "/llm_data/llm_outputs"
 
-    with sqlite3.Connection("/prod.db") as conn:
-        conn.row_factory = dict_factory
-        res = conn.execute(
-            "SELECT * FROM t_game_info ORDER BY date DESC LIMIT 1;"
-        )
-        most_recent = res.fetchone()["date"]
-        res = conn.execute(
-            f"SELECT * FROM t_game_info WHERE date = '{most_recent}' ORDER BY date DESC;"
-        )
-        return res.fetchall()
+
+def get_inputs() -> list[dict[str, str]]:
+    def read_file(path: str) -> dict[str, str]:
+        with open(f"{LLM_INPUT_DIRECTORY}/{path}") as f:
+            return json.load(f)
+
+    def get_file_date(filename: str) -> str:
+        return filename.split("_")[0]
+
+    most_recent_date = get_file_date(max([f for f in listdir(LLM_INPUT_DIRECTORY)]))
+    return [
+        read_file(f)
+        for f in [
+            p
+            for p in listdir(LLM_INPUT_DIRECTORY)
+            if get_file_date(p) == most_recent_date
+        ]
+    ]
 
 
 def format_datatables(data: dict[str, str]) -> str:
@@ -36,6 +41,7 @@ def format_datatables(data: dict[str, str]) -> str:
     elif data["game_number"] == 3:
         multiheader_text = "This is game 3 of a tripleheader."
     else:
+        multiheader_text = ""
         print("Four+ games in a day!?!?!")
 
     return f"""{multiheader_text}
@@ -64,18 +70,19 @@ Away Team: {data['away_team_city'] + ' ' + data['away_team_name']}
 """
 
 
-def save_summary(summary: dict[str, str]):
-    with sqlite3.Connection("/prod.db") as conn:
-        conn.execute(
-            f"INSERT INTO t_llm_output_data VALUES (?, ?);",
-            (summary["game_id"], summary["summary"]),
-        )
-        conn.commit()
+def save_summary(data_dict: dict[str, str]):
+    # TODO: Don't like that this is duplicated from pull_boxscores:save_data
+    filename: str = (
+        f"{data_dict['date']}_{data_dict['home_team_name']}_at_{data_dict['away_team_name']}_{data_dict['game_number']}"
+    )
+
+    with open(f"{LLM_OUTPUT_DIRECTORY}/{filename}.json", "w") as f:
+        json.dump(data_dict, f)
 
 
 def get_prompt() -> str:
-    prompt_path = sorted(listdir("prompts/"))[-1]  # Get most recent prompt
-    with open(f"prompts/{prompt_path}") as f:
+    prompt_path = sorted(listdir("/llm_data/prompts/"))[-1]  # Get most recent prompt
+    with open(f"/llm_data/prompts/{prompt_path}") as f:
         return f.read()
 
 
@@ -86,27 +93,27 @@ def build_chain():
     return prompt | model | output_parser
 
 
-def main() -> str:
+def main(test: int | None = None) -> str:
     fn_start = monotonic()
 
-    llm_inputs = get_inputs()
+    data_dicts = get_inputs()[:test]
     chain = build_chain()
 
-    for ix, llm_input in enumerate(llm_inputs):
-        print(f"{ix+1}/{len(llm_inputs)}")
-        formatted = format_datatables(llm_input)
-        save_summary(
-            {
-                "game_id": llm_input["game_id"],
-                "summary": chain.invoke({"data": formatted}),
-            }
-        )
+    for ix, d in enumerate(data_dicts):
+        print(f"{ix+1}/{len(data_dicts)}")
+        formatted = format_datatables(d)
+        d["summary"] = chain.invoke({"data": formatted})
+        save_summary(d)
         sleep(12)
 
-    print(f"Finished generate-summaries in {monotonic() - fn_start} s.")
+    print(f"Finished generate-summaries in {monotonic() - fn_start:.1f} s.")
 
 
 if __name__ == "__main__":
     with open("/run/secrets/ANTHROPIC_API_KEY") as f:
         environ["ANTHROPIC_API_KEY"] = f.read().strip()
-    main()
+    print("Detected test flag. Limiting number of pulls.")
+    if environ["GS_TEST"] == "1":
+        main(2)
+    else:
+        main()

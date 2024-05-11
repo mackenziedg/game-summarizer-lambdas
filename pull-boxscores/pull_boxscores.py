@@ -2,13 +2,17 @@ from configparser import ConfigParser
 from datetime import date, timedelta
 from io import StringIO
 import json
-import sqlite3
+from os import environ, listdir
 from time import monotonic, sleep
 
 import boto3
 from bs4 import BeautifulSoup
 import pandas as pd
 import requests
+
+
+# Volume defined in compose.yaml
+LLM_INPUT_DIRECTORY: str = "/llm_data/llm_inputs"
 
 
 class Scraper:
@@ -147,38 +151,17 @@ def parse_response(yesterday: date, r: requests.Response) -> tuple[str, str]:
     }
 
 
-def save_data(conn: sqlite3.Connection, data_dict: dict[str, str]):
-    res = conn.execute(f"SELECT MAX(game_id) FROM t_game_info;")
-    max_id = res.fetchone()[0]
-    if max_id is None:
-        max_id = 0
-    else:
-        max_id += 1
-
-    conn.execute(
-        f"INSERT INTO t_game_info VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);",
-        (
-            max_id,
-            data_dict["date"],
-            data_dict["away_team_city"],
-            data_dict["home_team_city"],
-            data_dict["away_team_name"],
-            data_dict["home_team_name"],
-            data_dict["away_standings"],
-            data_dict["home_standings"],
-            data_dict["boxscore"],
-            data_dict["away_batting"],
-            data_dict["home_batting"],
-            data_dict["away_pitching"],
-            data_dict["home_pitching"],
-            data_dict["big_plays"],
-            data_dict["game_number"],
-        ),
+def save_data(data_dict: dict[str, str]):
+    all_files: list[str] = listdir(LLM_INPUT_DIRECTORY)
+    filename: str = (
+        f"{data_dict['date']}_{data_dict['home_team_name']}_at_{data_dict['away_team_name']}_{data_dict['game_number']}"
     )
-    conn.commit()
+
+    with open(f"{LLM_INPUT_DIRECTORY}/{filename}.json", "w") as f:
+        f.write(json.dumps(data_dict))
 
 
-def main():
+def main(limit: int | None = None):
     print("Starting pull-boxscores...")
     fn_start = monotonic()
 
@@ -188,7 +171,7 @@ def main():
     print("Scraping site...")
     responses = []
     start = monotonic()
-    for i, url in enumerate(urls):
+    for i, url in enumerate(urls[:limit]):
         print(f"{i+1}/{len(urls)}")
         r = scraper.get(url)
         responses.append(r)
@@ -199,23 +182,25 @@ def main():
     inputs = {}
 
     print("Parsing site data...")
-    with sqlite3.connect("/prod.db") as conn:
-        seen_teams = []  # Use to flag double-/triple-headers
+    seen_teams = []  # Use to flag double-/triple-headers
+    start = monotonic()
+    for i, r in enumerate(responses):
+        print(f"{i+1}/{len(responses)}")
+
+        data_dict = parse_response(yesterday, r)
+        data_dict["game_number"] = seen_teams.count(data_dict["home_team_name"]) + 1
+        seen_teams.append(data_dict["home_team_name"])
+        save_data(data_dict)
+
+        print(f"Completed in {monotonic() - start}")
         start = monotonic()
-        for i, r in enumerate(responses):
-            print(f"{i+1}/{len(responses)}")
 
-            data_dict = parse_response(yesterday, r)
-            data_dict["game_number"] = seen_teams.count(data_dict["home_team_name"]) + 1
-            seen_teams.append(data_dict["home_team_name"])
-            save_data(conn, data_dict)
-
-            print(f"Completed in {monotonic() - start}")
-            start = monotonic()
-        conn.commit()
-
-    print(f"Finished pull-boxscores in {monotonic() - fn_start} s.")
+    print(f"Finished pull-boxscores in {monotonic() - fn_start:.1f} s.")
 
 
 if __name__ == "__main__":
-    main()
+    if environ["GS_TEST"] == "1":
+        print("Detected test flag. Limiting number of pulls.")
+        main(2)
+    else:
+        main()
