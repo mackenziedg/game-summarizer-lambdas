@@ -103,8 +103,7 @@ def main(test: int | None = None) -> str:
     for ix, d in enumerate(data_dicts):
         print(f"{ix+1}/{len(data_dicts)}")
         formatted = format_datatables(d)
-        d["summary"] = summary_chain.invoke({"data": formatted})
-        d["summary_en"] = d["summary"]
+        d["summary_en"] = summary_chain.invoke({"data": formatted})
         sleep(1)  # Just being safe with rate limits
         d["summary_es"] = translate_chain.invoke({"article": d["summary_en"]})
         sleep(1)  # Just being safe with rate limits
