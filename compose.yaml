@@ -7,7 +7,7 @@ services:
       - GS_TEST=${GS_TEST}
     volumes:
       - type: bind
-        source: ${PWD}/data
+        source: ${LLM_DATA_PATH}
         target: /llm_data
   generate-summaries:
     build:
@@ -19,7 +19,7 @@ services:
       - ANTHROPIC_API_KEY
     volumes:
       - type: bind
-        source: ${PWD}/data
+        source: ${LLM_DATA_PATH}
         target: /llm_data
     depends_on:
       pull-boxscores:
