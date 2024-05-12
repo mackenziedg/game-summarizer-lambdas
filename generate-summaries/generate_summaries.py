@@ -87,9 +87,14 @@ def get_prompt(prompt_type: str) -> str:
 
 
 def build_chain(prompt_type: str):
-    model = ChatAnthropic(model="claude-3-haiku-20240307")
     prompt = ChatPromptTemplate.from_template(get_prompt(prompt_type))
     output_parser = StrOutputParser()
+
+    if prompt_type == "summarize":
+        model = ChatAnthropic(model="claude-3-haiku-20240307")
+    elif prompt_type == "translate":
+        model = ChatAnthropic(model="claude-3-sonnet-20240229")
+
     return prompt | model | output_parser
 
 
