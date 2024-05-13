@@ -5,6 +5,7 @@ from time import monotonic, sleep
 from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.utils.utils import convert_to_secret_str
 
 # Volume defined in compose.yaml
 LLM_INPUT_DIRECTORY: str = "/llm_data/llm_inputs"
@@ -69,10 +70,8 @@ Away Team: {data['away_team_city'] + ' ' + data['away_team_name']}
 
 def save_summary(data_dict: dict[str, str]):
     # TODO: Don't like that this is duplicated from pull_boxscores:save_data
-    filename: str = (
-        f"{data_dict['date']}_{data_dict['home_team_name']}\
+    filename: str = f"{data_dict['date']}_{data_dict['home_team_name']}\
         _at_{data_dict['away_team_name']}_{data_dict['game_number']}"
-    )
 
     with open(f"{LLM_OUTPUT_DIRECTORY}/{filename}.json", "w") as f:
         json.dump(data_dict, f)
@@ -89,11 +88,26 @@ def get_prompt(prompt_type: str) -> str:
 def build_chain(prompt_type: str):
     prompt = ChatPromptTemplate.from_template(get_prompt(prompt_type))
     output_parser = StrOutputParser()
+    with open("/run/secrets/ANTHROPIC_API_KEY") as f:
+        api_key = convert_to_secret_str(f.read().strip())
+
+    temperature = 0.0
+    timeout = 60.0
 
     if prompt_type == "summarize":
-        model = ChatAnthropic(model="claude-3-haiku-20240307")
+        model = ChatAnthropic(
+            model_name="claude-3-haiku-20240307",
+            temperature=temperature,
+            timeout=timeout,
+            api_key=api_key,
+        )
     elif prompt_type == "translate":
-        model = ChatAnthropic(model="claude-3-sonnet-20240229")
+        model = ChatAnthropic(
+            model_name="claude-3-sonnet-20240229",
+            temperature=temperature,
+            timeout=timeout,
+            api_key=api_key,
+        )
     else:
         raise ValueError(f"Invalid prompt type: {prompt_type}")
 
@@ -104,8 +118,12 @@ def main(test: int | None = None):
     fn_start = monotonic()
 
     data_dicts = get_inputs()[:test]
-    summary_chain = build_chain("summarize")
-    translate_chain = build_chain("translate")
+    try:
+        summary_chain = build_chain("summarize")
+        translate_chain = build_chain("translate")
+    except ValueError as e:
+        print(e)
+        return
 
     for ix, d in enumerate(data_dicts):
         print(f"{ix + 1}/{len(data_dicts)}")
@@ -120,8 +138,6 @@ def main(test: int | None = None):
 
 
 if __name__ == "__main__":
-    with open("/run/secrets/ANTHROPIC_API_KEY") as f:
-        environ["ANTHROPIC_API_KEY"] = f.read().strip()
     print("Detected test flag. Limiting number of pulls.")
     if environ["GS_TEST"] == "1":
         main(2)
