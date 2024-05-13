@@ -27,10 +27,10 @@ class Scraper:
 
 def get_urls() -> list[str]:
     scraper = Scraper(4.0)
-    r = scraper.get(f"https://www.baseball-reference.com/boxes")
+    r = scraper.get("https://www.baseball-reference.com/boxes")
     b = BeautifulSoup(r.text, "lxml")
     return [
-        "https://www.baseball-reference.com" + s.select("a")[1].get("href")
+        "https://www.baseball-reference.com" + str(s.select("a")[1].get("href"))
         for s in b.select("div.game_summary")
     ]
 
@@ -72,7 +72,7 @@ def split_team_name(full: str) -> tuple[str, str]:
 
 def extract_tables(c):
     c = c.split("\n")
-    ixs = [ix for ix, l in enumerate(c) if "table_container" in l]
+    ixs = [ix for ix, line in enumerate(c) if "table_container" in line]
     tables = []
     for table_ix, line_ix in enumerate(ixs):
         tables.append([])
@@ -148,9 +148,7 @@ def parse_response(r: requests.Response) -> dict[str, str]:
 
 
 def save_data(data_dict: dict[str, str]):
-    filename: str = (
-        f"{data_dict['date']}_{data_dict['home_team_name']}_at_{data_dict['away_team_name']}_{data_dict['game_number']}"
-    )
+    filename: str = f"{data_dict['date']}_{data_dict['home_team_name']}_at_{data_dict['away_team_name']}_{data_dict['game_number']}"
 
     with open(f"{LLM_INPUT_DIRECTORY}/{filename}.json", "w") as f:
         f.write(json.dumps(data_dict))
@@ -174,7 +172,7 @@ def main(limit: int | None = None):
         start = monotonic()
 
     print("Parsing site data...")
-    seen_teams = []  # Use to flag double-/triple-headers
+    seen_teams: list[str] = []  # Use to flag double-/triple-headers
     start = monotonic()
     for i, r in enumerate(responses):
         print(f"{i + 1}/{len(responses)}")
