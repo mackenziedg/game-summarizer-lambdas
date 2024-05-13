@@ -1,15 +1,12 @@
-from configparser import ConfigParser
+import json
 from datetime import date, timedelta
 from io import StringIO
-import json
-from os import environ, listdir
+from os import environ
 from time import monotonic, sleep
 
-import boto3
-from bs4 import BeautifulSoup
 import pandas as pd
 import requests
-
+from bs4 import BeautifulSoup
 
 # Volume defined in compose.yaml
 LLM_INPUT_DIRECTORY: str = "/llm_data/llm_inputs"
@@ -79,7 +76,6 @@ def extract_tables(c):
     tables = []
     for table_ix, line_ix in enumerate(ixs):
         tables.append([])
-        ix = line_ix
         while True:
             if "</table>" in c[line_ix]:
                 break
@@ -91,7 +87,7 @@ def extract_tables(c):
     return [t[1:] for t in tables]
 
 
-def parse_response(yesterday: date, r: requests.Response) -> tuple[str, str]:
+def parse_response(r: requests.Response) -> dict[str, str]:
     b = BeautifulSoup(r.content, "lxml")
 
     tables = extract_tables(str(r.text))
@@ -124,7 +120,7 @@ def parse_response(yesterday: date, r: requests.Response) -> tuple[str, str]:
     )
 
     boxscore = (
-        pd.read_html(r.content, flavor="lxml")[0]
+        pd.read_html(r.content.decode("utf8"), flavor="lxml")[0]
         .iloc[[0, 1], 1:]
         .rename(columns={"Unnamed: 1": "Team"})
     )
@@ -152,7 +148,6 @@ def parse_response(yesterday: date, r: requests.Response) -> tuple[str, str]:
 
 
 def save_data(data_dict: dict[str, str]):
-    all_files: list[str] = listdir(LLM_INPUT_DIRECTORY)
     filename: str = (
         f"{data_dict['date']}_{data_dict['home_team_name']}_at_{data_dict['away_team_name']}_{data_dict['game_number']}"
     )
@@ -172,23 +167,22 @@ def main(limit: int | None = None):
     responses = []
     start = monotonic()
     for i, url in enumerate(urls[:limit]):
-        print(f"{i+1}/{len(urls)}")
+        print(f"{i + 1}/{len(urls)}")
         r = scraper.get(url)
         responses.append(r)
         print(f"Completed in {monotonic() - start}")
         start = monotonic()
 
-    yesterday = date.today() - timedelta(days=1)
-    inputs = {}
-
     print("Parsing site data...")
     seen_teams = []  # Use to flag double-/triple-headers
     start = monotonic()
     for i, r in enumerate(responses):
-        print(f"{i+1}/{len(responses)}")
+        print(f"{i + 1}/{len(responses)}")
 
-        data_dict = parse_response(yesterday, r)
-        data_dict["game_number"] = seen_teams.count(data_dict["home_team_name"]) + 1
+        data_dict = parse_response(r)
+        data_dict["game_number"] = str(
+            seen_teams.count(data_dict["home_team_name"]) + 1
+        )
         seen_teams.append(data_dict["home_team_name"])
         save_data(data_dict)
 

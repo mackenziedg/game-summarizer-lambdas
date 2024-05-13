@@ -1,3 +1,0 @@
--r requirements.txt
-python-lsp-server==1.11.0
-python-lsp-black==2.0.0

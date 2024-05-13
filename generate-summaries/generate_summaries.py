@@ -1,5 +1,3 @@
-from configparser import ConfigParser
-from datetime import date, timedelta
 import json
 from os import environ, listdir
 from time import monotonic, sleep
@@ -7,7 +5,6 @@ from time import monotonic, sleep
 from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-
 
 # Volume defined in compose.yaml
 LLM_INPUT_DIRECTORY: str = "/llm_data/llm_inputs"
@@ -22,7 +19,7 @@ def get_inputs() -> list[dict[str, str]]:
     def get_file_date(filename: str) -> str:
         return filename.split("_")[0]
 
-    most_recent_date = get_file_date(max([f for f in listdir(LLM_INPUT_DIRECTORY)]))
+    most_recent_date = get_file_date(max(listdir(LLM_INPUT_DIRECTORY)))
     return [
         read_file(f)
         for f in [
@@ -73,7 +70,8 @@ Away Team: {data['away_team_city'] + ' ' + data['away_team_name']}
 def save_summary(data_dict: dict[str, str]):
     # TODO: Don't like that this is duplicated from pull_boxscores:save_data
     filename: str = (
-        f"{data_dict['date']}_{data_dict['home_team_name']}_at_{data_dict['away_team_name']}_{data_dict['game_number']}"
+        f"{data_dict['date']}_{data_dict['home_team_name']}\
+        _at_{data_dict['away_team_name']}_{data_dict['game_number']}"
     )
 
     with open(f"{LLM_OUTPUT_DIRECTORY}/{filename}.json", "w") as f:
@@ -81,7 +79,9 @@ def save_summary(data_dict: dict[str, str]):
 
 
 def get_prompt(prompt_type: str) -> str:
-    prompt_path = sorted(listdir(f"/llm_data/prompts/{prompt_type}/"))[-1]  # Get most recent prompt
+    prompt_path = sorted(listdir(f"/llm_data/prompts/{prompt_type}/"))[
+        -1
+    ]  # Get most recent prompt
     with open(f"/llm_data/prompts/{prompt_type}/{prompt_path}") as f:
         return f.read()
 
@@ -94,11 +94,13 @@ def build_chain(prompt_type: str):
         model = ChatAnthropic(model="claude-3-haiku-20240307")
     elif prompt_type == "translate":
         model = ChatAnthropic(model="claude-3-sonnet-20240229")
+    else:
+        raise ValueError(f"Invalid prompt type: {prompt_type}")
 
     return prompt | model | output_parser
 
 
-def main(test: int | None = None) -> str:
+def main(test: int | None = None):
     fn_start = monotonic()
 
     data_dicts = get_inputs()[:test]
@@ -106,7 +108,7 @@ def main(test: int | None = None) -> str:
     translate_chain = build_chain("translate")
 
     for ix, d in enumerate(data_dicts):
-        print(f"{ix+1}/{len(data_dicts)}")
+        print(f"{ix + 1}/{len(data_dicts)}")
         formatted = format_datatables(d)
         d["summary_en"] = summary_chain.invoke({"data": formatted})
         sleep(1)  # Just being safe with rate limits
