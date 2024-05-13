@@ -32,11 +32,11 @@ def get_inputs() -> list[dict[str, str]]:
 
 
 def format_datatables(data: dict[str, str]) -> str:
-    if data["game_number"] == 1:
+    if data["game_number"] == "1":
         multiheader_text = ""
-    elif data["game_number"] == 2:
+    elif data["game_number"] == "2":
         multiheader_text = "This is game 2 of a doubleheader."
-    elif data["game_number"] == 3:
+    elif data["game_number"] == "3":
         multiheader_text = "This is game 3 of a tripleheader."
     else:
         multiheader_text = ""

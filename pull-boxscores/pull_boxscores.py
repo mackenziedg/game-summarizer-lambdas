@@ -26,8 +26,7 @@ class Scraper:
 
 
 def get_urls() -> list[str]:
-    scraper = Scraper(4.0)
-    r = scraper.get("https://www.baseball-reference.com/boxes")
+    r = requests.get("https://www.baseball-reference.com/boxes")
     b = BeautifulSoup(r.text, "lxml")
     return [
         "https://www.baseball-reference.com" + str(s.select("a")[1].get("href"))
@@ -70,19 +69,19 @@ def split_team_name(full: str) -> tuple[str, str]:
     }[full]
 
 
-def extract_tables(c):
-    c = c.split("\n")
-    ixs = [ix for ix, line in enumerate(c) if "table_container" in line]
-    tables = []
+def extract_tables(c: str) -> list[list[str]]:
+    cs = c.splitlines()
+    ixs = [ix for ix, line in enumerate(cs) if "table_container" in line]
+    tables: list[list[str]] = []
     for table_ix, line_ix in enumerate(ixs):
         tables.append([])
         while True:
-            if "</table>" in c[line_ix]:
+            if "</table>" in cs[line_ix]:
                 break
-            elif c[line_ix].strip() == "":
+            elif cs[line_ix].strip() == "":
                 pass
             else:
-                tables[table_ix].append(c[line_ix].strip())
+                tables[table_ix].append(cs[line_ix].strip())
             line_ix += 1
     return [t[1:] for t in tables]
 
