@@ -103,7 +103,7 @@ def build_chain(prompt_type: str):
         )
     elif prompt_type == "translate":
         model = ChatAnthropic(
-            model_name="claude-3-sonnet-20240229",
+            model_name="claude-3-haiku-20240307",
             temperature=temperature,
             timeout=timeout,
             api_key=api_key,
