@@ -70,17 +70,15 @@ Away Team: {data['away_team_city'] + ' ' + data['away_team_name']}
 
 def save_summary(data_dict: dict[str, str]):
     # TODO: Don't like that this is duplicated from pull_boxscores:save_data
-    filename: str = f"{data_dict['date']}_{data_dict['home_team_name']}\
-        _at_{data_dict['away_team_name']}_{data_dict['game_number']}"
+    filename: str = f"{data_dict['date']}_{data_dict['home_team_name']}_at_{data_dict['away_team_name']}_{data_dict['game_number']}"
 
     with open(f"{LLM_OUTPUT_DIRECTORY}/{filename}.json", "w") as f:
         json.dump(data_dict, f)
 
 
 def get_prompt(prompt_type: str) -> str:
-    prompt_path = sorted(listdir(f"/llm_data/prompts/{prompt_type}/"))[
-        -1
-    ]  # Get most recent prompt
+    # Get most recent prompt
+    prompt_path = sorted(listdir(f"/llm_data/prompts/{prompt_type}/"))[-1]
     with open(f"/llm_data/prompts/{prompt_type}/{prompt_path}") as f:
         return f.read()
 
@@ -138,8 +136,8 @@ def main(test: int | None = None):
 
 
 if __name__ == "__main__":
-    print("Detected test flag. Limiting number of pulls.")
     if environ["GS_TEST"] == "1":
+        print("Detected test flag. Limiting number of pulls.")
         main(2)
     else:
         main()
