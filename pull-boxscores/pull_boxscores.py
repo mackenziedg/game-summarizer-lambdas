@@ -142,9 +142,11 @@ def parse_response(r: requests.Response) -> dict[str, str]:
     home_team_city, home_team_name = split_team_name(game_info["home_team_name"])
 
     if game_info["playoffs"]:
-        playoff_info = f'Playoff series {game_info["playoffs"]} is currently {game_info["playoff_series_status"]}'
+        series_history = game_info["playoff_series_status"].split()[-1]
+        game_number = int(series_history[1]) + int(series_history[3])
+        playoff_info = f'{game_info["playoffs"]} game {game_number}. {game_info["playoff_series_status"]}'
     else:
-        playoff_info = "Not a playoff game."
+        playoff_info = ""
 
     game_date = datetime.strptime(game_info["game_date"], "%B %d, %Y").strftime("%Y%m%d")
 

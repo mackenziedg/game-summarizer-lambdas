@@ -42,11 +42,18 @@ def format_datatables(data: dict[str, str]) -> str:
         multiheader_text = ""
         print("Four+ games in a day!?!?!")
 
+    playoff_info = f"""
+
+    ==Playoff Status==
+    {data['playoff_info']}
+""" if data['playoff_info'] else ""
+
     return f"""{multiheader_text}
 Home Team: {data['home_team_city'] + ' ' + data['home_team_name']}
     Standing: {data['home_standings']}
 Away Team: {data['away_team_city'] + ' ' + data['away_team_name']}
     Standing: {data['away_standings']}
+{playoff_info}
 
 ==Box Score==
 {data['boxscore']}
@@ -89,7 +96,7 @@ def build_chain(prompt_type: str):
     with open("/run/secrets/ANTHROPIC_API_KEY") as f:
         api_key = convert_to_secret_str(f.read().strip())
 
-    temperature = 0.0
+    temperature = 0.5
     timeout = 60.0
 
     if prompt_type == "summarize":

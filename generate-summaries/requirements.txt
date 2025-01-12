@@ -1,2 +1,2 @@
-langchain==0.1.17
-langchain_anthropic==0.1.11
+langchain>=0.2.5
+langchain_anthropic>=0.3.1
