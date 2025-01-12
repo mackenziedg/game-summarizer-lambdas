@@ -1,7 +1,8 @@
 import json
-from datetime import date, timedelta
+from datetime import datetime
 from io import StringIO
 from os import environ
+import re
 from time import monotonic, sleep
 
 import pandas as pd
@@ -86,6 +87,26 @@ def extract_tables(c: str) -> list[list[str]]:
     return [t[1:] for t in tables]
 
 
+def get_game_info(b) -> dict:
+    pattern = re.compile("(World Series|ALWC|NLWC|ALCS|NLCS|ALDS|NLDS)")
+    info = {}
+    po_info = re.search(pattern, b.title.text)
+    info["playoffs"] = po_info[0] if po_info is not None else ""
+    info["playoff_series_status"] = ""
+
+    info["game_date"] = b.title.text.split(": ")[1].split(" |")[0]
+
+    scorebox = b.find("div", class_="scorebox")
+    away = scorebox.find("div")
+    info["away_team_name"] = away.find_all("a")[2].text
+    info["away_standings"] = away.find_all("div")[4].text
+
+    home = scorebox.find_all("div")[7]
+    info["home_team_name"] = home.find_all("a")[2].text
+    info["home_standings"] = home.find_all("div")[4].text
+    return info
+
+
 def parse_response(r: requests.Response) -> dict[str, str]:
     b = BeautifulSoup(r.content, "lxml")
 
@@ -103,20 +124,13 @@ def parse_response(r: requests.Response) -> dict[str, str]:
     home_pitching = home_pitching.drop(columns=["GSc", "IR", "IS"])
     big_plays = data[4]
 
-    away_standings = (
-        b.select("div#wrap")[0]
-        .select("div#content")[0]
-        .select("div")[3]
-        .select("div")[5]
-        .text
-    )
-    home_standings = (
-        b.select("div#wrap")[0]
-        .select("div#content")[0]
-        .select("div")[3]
-        .select("div")[12]
-        .text
-    )
+    game_info = get_game_info(b)
+
+    if game_info["playoffs"]:
+        ps_summary_url = "https://www.baseball-reference.com" + b.find("div", class_="game_summaries").find_all("a")[-1].get("href")
+        r = Scraper(4.0).get(ps_summary_url)
+        bpo = BeautifulSoup(r.content)
+        game_info["playoff_series_status"] = bpo.title.text.split(" - ")[1].split(" |")[0]
 
     boxscore = (
         pd.read_html(r.content.decode("utf8"), flavor="lxml")[0]
@@ -124,19 +138,25 @@ def parse_response(r: requests.Response) -> dict[str, str]:
         .rename(columns={"Unnamed: 1": "Team"})
     )
 
-    away_team_city, away_team_name = split_team_name(str(boxscore.iloc[0, 0]))
-    home_team_city, home_team_name = split_team_name(str(boxscore.iloc[1, 0]))
+    away_team_city, away_team_name = split_team_name(game_info["away_team_name"])
+    home_team_city, home_team_name = split_team_name(game_info["home_team_name"])
 
-    yesterday = (date.today() - timedelta(days=1)).strftime("%Y-%m-%d")
+    if game_info["playoffs"]:
+        playoff_info = f'Playoff series {game_info["playoffs"]} is currently {game_info["playoff_series_status"]}'
+    else:
+        playoff_info = "Not a playoff game."
+
+    game_date = datetime.strptime(game_info["game_date"], "%B %d, %Y").strftime("%Y%m%d")
 
     return {
-        "date": yesterday,
+        "date": game_date,
+        "playoff_info": playoff_info,
         "away_team_city": away_team_city,
         "home_team_city": home_team_city,
         "away_team_name": away_team_name,
         "home_team_name": home_team_name,
-        "away_standings": away_standings,
-        "home_standings": home_standings,
+        "away_standings": game_info["away_standings"],
+        "home_standings": game_info["home_standings"],
         "boxscore": boxscore.to_csv(sep="|"),
         "away_batting": away_batting.to_csv(sep="|"),
         "home_batting": home_batting.to_csv(sep="|"),
