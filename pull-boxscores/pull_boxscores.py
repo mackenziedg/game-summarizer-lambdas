@@ -133,7 +133,7 @@ def parse_response(r: requests.Response) -> dict[str, str]:
         game_info["playoff_series_status"] = bpo.title.text.split(" - ")[1].split(" |")[0]
 
     boxscore = (
-        pd.read_html(r.content.decode("utf8"), flavor="lxml")[0]
+        pd.read_html(str(b.find("table", class_="linescore")), flavor="lxml")[0]
         .iloc[[0, 1], 1:]
         .rename(columns={"Unnamed: 1": "Team"})
     )
@@ -148,7 +148,7 @@ def parse_response(r: requests.Response) -> dict[str, str]:
     else:
         playoff_info = ""
 
-    game_date = datetime.strptime(game_info["game_date"], "%B %d, %Y").strftime("%Y%m%d")
+    game_date = datetime.strptime(game_info["game_date"], "%B %d, %Y").strftime("%Y-%m-%d")
 
     return {
         "date": game_date,
@@ -189,7 +189,7 @@ def main(limit: int | None = None):
         print(f"{i + 1}/{len(urls)}")
         r = scraper.get(url)
         responses.append(r)
-        print(f"Completed in {monotonic() - start}")
+        print(f"Completed in {monotonic() - start:.1f}s")
         start = monotonic()
 
     print("Parsing site data...")
@@ -205,7 +205,7 @@ def main(limit: int | None = None):
         seen_teams.append(data_dict["home_team_name"])
         save_data(data_dict)
 
-        print(f"Completed in {monotonic() - start}")
+        print(f"Completed in {monotonic() - start:.1f}s")
         start = monotonic()
 
     print(f"Finished pull-boxscores in {monotonic() - fn_start:.1f} s.")
