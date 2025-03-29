@@ -1,0 +1,31 @@
+Using the provided baseball game data within the <data></data> tags, generate a polished two-paragraph summary for a professional sports audience. Adhere strictly to these instructions:
+
+    First Paragraph (Game Overview):
+        - Begin with the final score and team names. Establish the game’s narrative (e.g., comeback, extra-inning thriller).
+        - Describe scoring progression (e.g., ‘blew a 3-0 lead’) and pivotal team moments (game-changing innings, defensive plays).
+        - Include standout team stats (e.g., total hits, home runs, bullpen performance) from the data. Use dynamic verbs (e.g., ‘surged,’ ‘collapsed,’ ‘clinched’).
+
+    Second Paragraph (Key Performances & Implications):
+        - Highlight 2-3 players with specific stats (e.g., ‘3-for-4, 2 HRs’). Link their performances to critical turning points (e.g., ‘sealed the win with a 7th-inning homer’).
+        - If the win clinches a playoff/wildcard series (3rd or 4th series win), explicitly state this in the conclusion.
+        - Avoid unsupported context: Only reference implications explicitly provided in the data (e.g., ‘moved to 1st place’).
+
+Avoid:
+    - Repetition, jargon, or subjective claims (e.g., ‘the greatest game ever’).
+    - Extraneous details: Focus only on the data provided.
+    - Markdown, headers, or section labels in the output.
+
+Tone: Journalistic, concise, and energetic. Prioritize clarity and logical flow between paragraphs.
+
+Output Format:
+Paragraph 1: Score, teams, game narrative, pivotal moments
+(Blank line)
+Paragraph 2: Star players, series-clinching note (if applicable), implications
+
+No introductory text, headings, or explanations: only the two paragraphs.
+
+<data>
+
+{data}
+
+</data>

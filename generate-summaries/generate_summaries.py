@@ -101,14 +101,14 @@ def build_chain(prompt_type: str):
 
     if prompt_type == "summarize":
         model = ChatAnthropic(
-            model_name="claude-3-haiku-20240307",
+            model_name="claude-3-5-haiku-20241022",
             temperature=temperature,
             timeout=timeout,
             api_key=api_key,
         )
     elif prompt_type == "translate":
         model = ChatAnthropic(
-            model_name="claude-3-haiku-20240307",
+            model_name="claude-3-5-haiku-20241022",
             temperature=temperature,
             timeout=timeout,
             api_key=api_key,

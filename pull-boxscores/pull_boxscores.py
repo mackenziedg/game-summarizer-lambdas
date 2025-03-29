@@ -1,34 +1,42 @@
-import json
 from datetime import datetime
 from io import StringIO
+import json
+import logging
 from os import environ
 import re
+import sys
 from time import monotonic, sleep
 
 import pandas as pd
-import requests
+from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 
 # Volume defined in compose.yaml
 LLM_INPUT_DIRECTORY: str = "/llm_data/llm_inputs"
 
 
+logger = logging.getLogger("PullBoxscores")
+
+
 class Scraper:
-    def __init__(self, request_delay: float = 4.0):
+    def __init__(self, session: HTMLSession, request_delay: float = 4.0):
         self.last_request_time = 0.0
         self.request_delay = request_delay
+        self.session = session
 
-    def get(self, url: str) -> requests.Response:
+    def get(self, url: str):
         if monotonic() - self.last_request_time < self.request_delay:
             sleep(self.request_delay - (monotonic() - self.last_request_time))
-        r = requests.get(url)
+        r = self.session.get(url).html
         self.last_request_time = monotonic()
-        return r
+        return r.html
 
 
-def get_urls() -> list[str]:
-    r = requests.get("https://www.baseball-reference.com/boxes")
-    b = BeautifulSoup(r.text, "lxml")
+def get_urls(session: HTMLSession) -> list[str]:
+    r = session.get("https://baseball-reference.com/boxes").html
+    with open("/llm_data/page.html", "w") as f:
+        f.write(r.html)
+    b = BeautifulSoup(r.html, "lxml")
     return [
         "https://www.baseball-reference.com" + str(s.select("a")[1].get("href"))
         for s in b.select("div.game_summary")
@@ -50,6 +58,7 @@ def split_team_name(full: str) -> tuple[str, str]:
         "Houston Astros": ("Houston", "Astros"),
         "Los Angeles Angels": ("Los Angeles", "Angels"),
         "Oakland Athletics": ("Oakland", "Athletics"),
+        "Athletics": ("The", "Athletics"),
         "Seattle Mariners": ("Seattle", "Mariners"),
         "Texas Rangers": ("Texas", "Rangers"),
         "Atlanta Braves": ("Atlanta", "Braves"),
@@ -101,16 +110,20 @@ def get_game_info(b) -> dict:
     info["away_team_name"] = away.find_all("a")[2].text
     info["away_standings"] = away.find_all("div")[4].text
 
-    home = scorebox.find_all("div")[7]
+    home = scorebox.find_all("div")[6]
+    if home.attrs.get("class") is not None:
+        # Not sure why this is needed but sometimes there's a div in between
+        # the two scoreboxes, and sometimes there isn't.
+        home = scorebox.find_all("div")[7]
     info["home_team_name"] = home.find_all("a")[2].text
     info["home_standings"] = home.find_all("div")[4].text
     return info
 
 
-def parse_response(r: requests.Response) -> dict[str, str]:
-    b = BeautifulSoup(r.content, "lxml")
+def parse_response(text: str) -> dict[str, str]:
+    b = BeautifulSoup(text, "lxml")
 
-    tables = extract_tables(str(r.text))
+    tables = extract_tables(str(text))
 
     data = []
     for t in tables:
@@ -176,27 +189,29 @@ def save_data(data_dict: dict[str, str]):
 
 
 def main(limit: int | None = None):
-    print("Starting pull-boxscores...")
+    logging.info("Starting pull-boxscores...")
     fn_start = monotonic()
 
-    urls = get_urls()
-    scraper = Scraper(4.0)
+    session = HTMLSession()
+    urls = get_urls(session)
+    logging.info(f"Pulling boxscores for {urls}")
+    scraper = Scraper(session, request_delay=4.0)
 
-    print("Scraping site...")
+    logging.info("Scraping site...")
     responses = []
     start = monotonic()
     for i, url in enumerate(urls[:limit]):
-        print(f"{i + 1}/{len(urls)}")
+        logging.info(f"{i + 1}/{len(urls)}")
         r = scraper.get(url)
         responses.append(r)
-        print(f"Completed in {monotonic() - start:.1f}s")
+        logging.info(f"Completed in {monotonic() - start:.1f}s")
         start = monotonic()
 
-    print("Parsing site data...")
+    logging.info("Parsing site data...")
     seen_teams: list[str] = []  # Use to flag double-/triple-headers
     start = monotonic()
     for i, r in enumerate(responses):
-        print(f"{i + 1}/{len(responses)}")
+        logging.info(f"{i + 1}/{len(responses)}")
 
         data_dict = parse_response(r)
         data_dict["game_number"] = str(
@@ -205,15 +220,16 @@ def main(limit: int | None = None):
         seen_teams.append(data_dict["home_team_name"])
         save_data(data_dict)
 
-        print(f"Completed in {monotonic() - start:.1f}s")
+        logging.info(f"Completed in {monotonic() - start:.1f}s")
         start = monotonic()
 
-    print(f"Finished pull-boxscores in {monotonic() - fn_start:.1f} s.")
+    logging.info(f"Finished pull-boxscores in {monotonic() - fn_start:.1f} s.")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     if environ["GS_TEST"] == "1":
-        print("Detected test flag. Limiting number of pulls.")
+        logging.warn("Detected test flag. Limiting number of pulls.")
         main(2)
     else:
         main()
