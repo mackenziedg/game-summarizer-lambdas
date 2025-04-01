@@ -1,7 +1,9 @@
+import logging
 import json
 from os import environ, listdir
 from time import monotonic, sleep
 
+from anthropic._exceptions import OverloadedError
 from langchain_anthropic import ChatAnthropic
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -10,6 +12,9 @@ from langchain_core.utils.utils import convert_to_secret_str
 # Volume defined in compose.yaml
 LLM_INPUT_DIRECTORY: str = "/llm_data/llm_inputs"
 LLM_OUTPUT_DIRECTORY: str = "/llm_data/llm_outputs"
+
+
+logger = logging.getLogger("GenerateSummaries")
 
 
 def get_inputs() -> list[dict[str, str]]:
@@ -40,7 +45,7 @@ def format_datatables(data: dict[str, str]) -> str:
         multiheader_text = "This is game 3 of a tripleheader."
     else:
         multiheader_text = ""
-        print("Four+ games in a day!?!?!")
+        logger.warning("Four+ games in a day!?!?!")
 
     playoff_info = f"""
 
@@ -127,24 +132,38 @@ def main(test: int | None = None):
         summary_chain = build_chain("summarize")
         translate_chain = build_chain("translate")
     except ValueError as e:
-        print(e)
+        logger.error(e)
         return
 
-    for ix, d in enumerate(data_dicts):
-        print(f"{ix + 1}/{len(data_dicts)}")
-        formatted = format_datatables(d)
-        d["summary_en"] = summary_chain.invoke({"data": formatted})
-        sleep(1)  # Just being safe with rate limits
-        d["summary_es"] = translate_chain.invoke({"article": d["summary_en"]})
-        sleep(1)  # Just being safe with rate limits
-        save_summary(d)
 
-    print(f"Finished generate-summaries in {monotonic() - fn_start:.1f} s.")
+    retries_remaining = 3
+
+    for ix, d in enumerate(data_dicts):
+        logger.info(f"{ix + 1}/{len(data_dicts)}")
+        formatted = format_datatables(d)
+        while True:
+            try:
+                d["summary_en"] = summary_chain.invoke({"data": formatted})
+                sleep(1)  # Just being safe with rate limits
+                d["summary_es"] = translate_chain.invoke({"article": d["summary_en"]})
+                sleep(1)  # Just being safe with rate limits
+                save_summary(d)
+                break
+            except OverloadedError:
+                logger.warning(f"Anthropic servers are currently overloaded. Waiting to retry. {retries_remaining} tries remaining.")
+                retries_remaining -= 1
+                sleep(30)
+            if retries_remaining == 0:
+                raise RuntimeError("Anthropic servers are overloaded and the request could not be completed after 3 retries")
+        retries_remaining = 3
+
+    logger.info(f"Finished generate-summaries in {monotonic() - fn_start:.1f} s.")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     if environ["GS_TEST"] == "1":
-        print("Detected test flag. Limiting number of pulls.")
+        logger.warning("Detected test flag. Limiting number of pulls.")
         main(2)
     else:
         main()

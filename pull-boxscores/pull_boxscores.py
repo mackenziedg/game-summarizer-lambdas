@@ -34,8 +34,6 @@ class Scraper:
 
 def get_urls(session: HTMLSession) -> list[str]:
     r = session.get("https://baseball-reference.com/boxes").html
-    with open("/llm_data/page.html", "w") as f:
-        f.write(r.html)
     b = BeautifulSoup(r.html, "lxml")
     return [
         "https://www.baseball-reference.com" + str(s.select("a")[1].get("href"))
@@ -213,14 +211,17 @@ def main(limit: int | None = None):
     for i, r in enumerate(responses):
         logging.info(f"{i + 1}/{len(responses)}")
 
-        data_dict = parse_response(r)
-        data_dict["game_number"] = str(
-            seen_teams.count(data_dict["home_team_name"]) + 1
-        )
-        seen_teams.append(data_dict["home_team_name"])
-        save_data(data_dict)
+        try:
+            data_dict = parse_response(r)
+            data_dict["game_number"] = str(
+                seen_teams.count(data_dict["home_team_name"]) + 1
+            )
+            seen_teams.append(data_dict["home_team_name"])
+            save_data(data_dict)
 
-        logging.info(f"Completed in {monotonic() - start:.1f}s")
+            logging.info(f"Completed in {monotonic() - start:.1f}s")
+        except Exception as e:
+            logger.error(f"Failed to parse game box score for {urls[i]}: {e}")
         start = monotonic()
 
     logging.info(f"Finished pull-boxscores in {monotonic() - fn_start:.1f} s.")
